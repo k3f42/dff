@@ -42,7 +42,7 @@
          <item>
           <widget class="QToolButton" name="addFolder">
            <property name="text">
-            <string>...</string>
+            <string>+</string>
            </property>
           </widget>
          </item>
@@ -106,6 +106,33 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SingleSelection</enum>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectRows</enum>
+         </property>
+         <property name="columnCount">
+          <number>3</number>
+         </property>
+         <column>
+          <property name="text">
+           <string>Folder name</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Size</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Nb items</string>
+          </property>
+         </column>
         </widget>
        </item>
        <item>
@@ -115,9 +142,9 @@
          </property>
          <layout class="QHBoxLayout" name="horizontalLayout_4">
           <item>
-           <widget class="QPushButton" name="deleteButton">
+           <widget class="QPushButton" name="find">
             <property name="text">
-             <string>delete</string>
+             <string>find</string>
             </property>
            </widget>
           </item>
@@ -133,6 +160,13 @@
              </size>
             </property>
            </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="deleteButton">
+            <property name="text">
+             <string>delete selected</string>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
@@ -161,6 +195,31 @@
             </item>
             <item>
              <widget class="QLabel" name="found_size">
+              <property name="text">
+               <string>0</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_5">
+            <item>
+             <widget class="QLabel" name="label_2">
+              <property name="text">
+               <string>Duplicate</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="duplicate_nb">
+              <property name="text">
+               <string>0</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="duplicate_size">
               <property name="text">
                <string>0</string>
               </property>
