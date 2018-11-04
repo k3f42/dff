@@ -3,6 +3,8 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QProgressDialog>
+#include <iostream>
+#include "crc.h"
 
 static const size_t kMaxDir=32;
 
@@ -39,78 +41,108 @@ void MainWindow::removeFolder() {
 
 void MainWindow::findDuplicate() {
   db.clear();
+  dirs_entry.clear();
+  count=0;
   // find all folders name
-  int nb=ui->folders->count();
+  size_t nb=ui->folders->count();
   QProgressDialog progressDialog(this);
   progressDialog.setRange(0, nb);
   progressDialog.setWindowTitle(tr("Scan input folders"));
-  bool ok=true;
-  for(int i=0;i<nb;++i) {
+
+  for(size_t i=0;i<nb;++i) {
     if (progressDialog.wasCanceled()) {
       QMessageBox::critical(this,"Cancel","Process cancelled");
       db.clear();
       return;
     }
     progressDialog.setValue(i);
-    if (!addFolderDb(ui->folders->item(i)->text())) {
+    if (!addElementDb(db,ui->folders->item(i)->text())) {
       QMessageBox::critical(this,"Limits","Maximum number of folders exceeded");
       db.clear();
       return;
     }
   }
 
-
   // look for duplicate
-  nb=db.size();
+  dirs_duplicate.clear();
+  nb=dirs_entry.size();
   progressDialog.reset();
   progressDialog.setRange(0, nb);
   progressDialog.setWindowTitle(tr("Scan for duplicate folders"));
-  for(int i=0;i<nb;++i) {
+  for(size_t i=0;i<nb;++i) {
      progressDialog.setValue(i);
      if (progressDialog.wasCanceled()) {
        QMessageBox::critical(this,"Cancel","Process cancelled");
        db.clear();
        return;
      }
+     // todo
+     dirs_duplicate.push_back(std::vector<Element *>({dirs_entry[i]}));
   }
 
   // populate table
-  ui->results->setRowCount(db.size());
+  ui->results->setRowCount(dirs_duplicate.size());
   int cpt=0;
-  for(const auto &e : db) {
-    QTableWidgetItem *newItem = new QTableWidgetItem(db.back().name);
-    ui->results->setItem(cpt,0, newItem);
-    newItem = new QTableWidgetItem(QString::number(db.back().nb_elts));
-    ui->results->setItem(cpt,2, newItem);
-    cpt++;
+  for(const auto &e : dirs_duplicate) {
+      const Element &first=*e.front();
+      QTableWidgetItem *newItem = new QTableWidgetItem(first.id.name);
+      ui->results->setItem(cpt,0, newItem);
+      newItem = new QTableWidgetItem(QString::number(e.size()));
+      ui->results->setItem(cpt,1, newItem);
+      newItem = new QTableWidgetItem(QString::number(first.id.size));
+      ui->results->setItem(cpt,2, newItem);
+      newItem = new QTableWidgetItem(QString::number(first.content.size()));
+      ui->results->setItem(cpt,3, newItem);
+      cpt++;
   }
   ui->results->resizeColumnsToContents();
 }
 
-bool MainWindow::addFolderDb(QString s) {
-  if (db.size()>kMaxDir) {
+bool MainWindow::addElementDb(std::vector<std::unique_ptr<Element>> &dbi,QString s) {
+  if (count>kMaxDir) {
     return false;
   }
   QDir dir(s);
   QString name=dir.canonicalPath();
-  if (std::find_if(db.begin(),db.end(),[&](const Folder &f) { return f.name==name;})!=db.end()) return true;
+  if (std::find_if(dbi.begin(),dbi.end(),[&](const std::unique_ptr<Element> &f) { return f->id.name==name;})!=dbi.end()) return true;
 
-  QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot);
-  db.push_back(Folder());
-  db.back().name=name;
-  db.back().nb_elts=list.size();
-
+  QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot|QDir::Files|QDir::Dirs);
+  dbi.emplace_back(new Element);
+  Element &cur=*dbi.back();
+  dirs_entry.push_back(&cur);
+  cur.id.name=name;
+  count++;
 
   bool ok=true;
   for (int i = 0; i < list.size(); ++i) {
-    QFileInfo fileInfo = list.at(i);
+    QFileInfo fileInfo = list.at(i);    
     if (fileInfo.isDir()) {
-      QMessageBox::critical(this,"info",fileInfo.filePath());
-      if (fileInfo.filePath()=="..") continue;
-      // std::cout << qPrintable(QString("%1 %2").arg(fileInfo.size(), 10)
-      //                        .arg(fileInfo.fileName()));
-      ok&=addFolderDb(fileInfo.canonicalFilePath());
+      ok&=addElementDb(cur.content,fileInfo.canonicalFilePath());
+    } else {
+        ok&=addFileDb(cur.content,fileInfo.canonicalFilePath());
+      }
+   }
+
+  // compute size and crc
+  cur.id.size=0;
+  cur.id.crc=0;
+  for(const auto &e: cur.content) {
+      cur.id.size+=e->id.size;
+      cur.id.crc=crc64(cur.id.crc,(const unsigned char *)&e->id.crc,sizeof(e->id.crc));
     }
-  }
   return ok;
+}
+
+bool MainWindow::addFileDb(std::vector<std::unique_ptr<Element>> &dbi,QString s) {
+  if (count>kMaxDir) {
+    return false;
+  }
+  QFileInfo file(s);
+  dbi.emplace_back(new Element);
+  Element &cur=*dbi.back();
+  cur.id.name=file.canonicalFilePath();
+  cur.id.size=file.size();
+  cur.id.crc=0; // crc64(0,cur.id.name);
+  count++;
+  return true;
 }

@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 #include <vector>
 #include <QMainWindow>
+#include <memory>
 
 namespace Ui {
 class MainWindow;
@@ -16,21 +17,27 @@ public:
   ~MainWindow();
 
 private:
-  struct Element {
+  struct Id {
     QString name;
-    //Id id;
+    size_t size;
+    uint64_t crc;
+    // date
   };
 
-  struct Folder {
-    QString name;
-    size_t nb_elts;
-    std::vector<Element> cache;
+  struct Element {
+    Id id;
+    std::vector<std::unique_ptr<Element>> content; // file: content is empty
   };
 
   Ui::MainWindow *ui;
-  std::vector<Folder> db;
-  bool addFolderDb(QString s);
+  bool addElementDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
+  bool addFileDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
+  size_t count;
 
+  std::vector<std::unique_ptr<Element>> db; // roots of the tree
+  std::vector<Element *> dirs_entry; // dirs only
+  using Duplicate=std::vector<Element *>;
+  std::vector<Duplicate> dirs_duplicate;
 
 private slots:
   void addInputFolder();

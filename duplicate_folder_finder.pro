@@ -12,10 +12,12 @@ TARGET = duplicate_folder_finder
 TEMPLATE = app
 
 CONFIG += c++11
+QMAKE_LFLAGS += -static
 
 SOURCES += main.cpp\
         mainwindow.cpp
 
-HEADERS  += mainwindow.h
+HEADERS  += mainwindow.h \
+    crc.h
 
 FORMS    += mainwindow.ui
