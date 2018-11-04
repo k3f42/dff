@@ -21,6 +21,7 @@ private:
     QString name;
     size_t size;
     uint64_t crc;
+    bool crc_done;
   };
 
   struct Element {
@@ -42,8 +43,9 @@ private:
 
   bool addFolderToDb(std::vector<std::unique_ptr<Element> > &dbi, QString s, int depth);
   bool addFileToDb(std::vector<std::unique_ptr<Element> > &dbi, QString s, int depth);
-  bool equal(const Element &d0,const Element &d1) const;
+  bool equal(Element &d0,Element &d1) const;
   void addDirsEntry(Element &e, std::vector<std::vector<Element *> > &v) const;
+  void crc64(Element &e) const;
 
 private slots:
   void addInputFolder();
