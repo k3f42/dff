@@ -30,14 +30,17 @@ private:
   };
 
   Ui::MainWindow *ui;
-  bool addElementDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
-  bool addFileDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
+  std::vector<std::unique_ptr<Element>> db; // roots of the tree
   size_t count;
 
-  std::vector<std::unique_ptr<Element>> db; // roots of the tree
-  std::vector<Element *> dirs_entry; // dirs only
-  using Duplicate=std::vector<Element *>;
-  std::vector<Duplicate> dirs_duplicate;
+  using DirEntry=std::pair<Element *,bool>; // bool=done
+  std::vector<DirEntry> dirs_entry; // dirs only
+  using Duplicates=std::vector<Element *>;
+  std::vector<Duplicates> dirs_duplicate;
+
+  bool addElementDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
+  bool addFileDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
+  bool equal(const Element &d0,const Element &d1) const;
 
 private slots:
   void addInputFolder();

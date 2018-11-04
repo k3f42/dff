@@ -16,6 +16,7 @@ MainWindow::MainWindow(QWidget *parent) :
   connect(ui->addFolder, &QPushButton::clicked, this, &MainWindow::addInputFolder);
   connect(ui->removeFolder, &QPushButton::clicked, this, &MainWindow::removeFolder);
   connect(ui->find, &QPushButton::clicked, this, &MainWindow::findDuplicate);
+
 }
 
 MainWindow::~MainWindow()
@@ -63,6 +64,7 @@ void MainWindow::findDuplicate() {
     }
   }
 
+
   // look for duplicate
   dirs_duplicate.clear();
   nb=dirs_entry.size();
@@ -76,8 +78,19 @@ void MainWindow::findDuplicate() {
        db.clear();
        return;
      }
-     // todo
-     dirs_duplicate.push_back(std::vector<Element *>({dirs_entry[i]}));
+     if (!dirs_entry[i].second) { // not done yet
+         Duplicates v;
+         v.push_back(dirs_entry[i].first);
+         dirs_entry[i].second=true;
+         for(size_t j=i+1;j<dirs_entry.size();++j) {
+             if (equal(*dirs_entry[i].first,*dirs_entry[j].first)) {
+                 v.push_back(dirs_entry[j].first);
+                 dirs_entry[j].second=true;
+             }
+         }
+         dirs_duplicate.push_back(std::move(v));
+         // if (!v.size()>1) dirs_duplicate.push_back(std::move(v));
+     }
   }
 
   // populate table
@@ -93,9 +106,25 @@ void MainWindow::findDuplicate() {
       ui->results->setItem(cpt,2, newItem);
       newItem = new QTableWidgetItem(QString::number(first.content.size()));
       ui->results->setItem(cpt,3, newItem);
+      newItem = new QTableWidgetItem(QString::number(first.id.crc));
+      ui->results->setItem(cpt,4, newItem);
       cpt++;
   }
   ui->results->resizeColumnsToContents();
+
+  // populate info
+  ui->duplicate_nb->setText(QString::number(dirs_duplicate.size()));
+  size_t size=0;
+  for(const auto &e: dirs_duplicate) {
+    size+=(e.size()-1)*e.front()->id.size;
+  }
+  ui->duplicate_size->setText(QString::number(size));
+  ui->found_nb->setText(QString::number(dirs_entry.size()));
+  size=0;
+  for(const auto &e: dirs_entry) {
+      size+=e.first->id.size;
+  }
+  ui->found_size->setText(QString::number(size));
 }
 
 bool MainWindow::addElementDb(std::vector<std::unique_ptr<Element>> &dbi,QString s) {
@@ -109,7 +138,7 @@ bool MainWindow::addElementDb(std::vector<std::unique_ptr<Element>> &dbi,QString
   QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot|QDir::Files|QDir::Dirs);
   dbi.emplace_back(new Element);
   Element &cur=*dbi.back();
-  dirs_entry.push_back(&cur);
+  dirs_entry.push_back(std::make_pair(&cur,false));
   cur.id.name=name;
   count++;
 
@@ -142,7 +171,28 @@ bool MainWindow::addFileDb(std::vector<std::unique_ptr<Element>> &dbi,QString s)
   Element &cur=*dbi.back();
   cur.id.name=file.canonicalFilePath();
   cur.id.size=file.size();
-  cur.id.crc=0; // crc64(0,cur.id.name);
+  cur.id.crc=crc64(cur.id.name);
   count++;
   return true;
 }
+
+
+bool MainWindow::equal(const Element &d0,const Element &d1) const {
+  if (ui->ignore_empty->isChecked()&&d0.id.size==0) return false;
+  if (ui->same_name->isChecked()) {
+      if (QFileInfo{d0.id.name}.fileName()!=QFileInfo{d1.id.name}.fileName()) return false;
+    }
+  if (ui->same_size->isChecked()) {
+      if (d0.id.size!=d1.id.size) return false;
+  }
+  if (ui->same_crc->isChecked()) {
+      if (d0.id.crc!=d1.id.crc) return false;
+  }
+  {
+      if (d0.content.size()!=d1.content.size()) return false;
+  }
+
+  return true;
+}
+
+

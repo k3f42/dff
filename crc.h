@@ -1,5 +1,9 @@
 #pragma once
 #include <cstdint>
+#include <array>
+#include <fstream>
+#include <QFileInfo>
+
 
 static const uint64_t crc64_tab[256] = {
     UINT64_C(0x0000000000000000), UINT64_C(0x7ad870c830358979),
@@ -141,3 +145,22 @@ static uint64_t crc64(uint64_t crc, const unsigned char *s, uint64_t l) {
     }
     return crc;
 }
+
+
+static uint64_t crc64(QString filename) {
+  QFileInfo file{filename};
+  static const size_t buffer_size=1024;
+  std::array<unsigned char,buffer_size> buffer;
+  auto size=file.size();
+  auto nb=size/buffer_size;
+  uint64_t crc=0;
+  std::ifstream ifile(filename.toStdString(),std::ios::binary);
+  for(size_t i=0;i<nb;++nb) {
+      ifile.read((char *)buffer.data(), buffer_size);
+      crc=crc64(crc,buffer.data(),buffer_size);
+    }
+  ifile.read((char *)buffer.data(), size%buffer_size);
+  crc=crc64(crc,buffer.data(),size%buffer_size);
+  return crc;
+}
+
