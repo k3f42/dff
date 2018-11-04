@@ -101,7 +101,7 @@ void MainWindow::findDuplicate() {
              }
          }
          // dirs_duplicate.push_back(std::move(v));
-         if (!v.size()>1) dirs_duplicate.push_back(std::move(v));
+         if (v.size()>1) dirs_duplicate.push_back(std::move(v));
      }
   }
 
