@@ -6,7 +6,7 @@
 #include <iostream>
 #include "crc.h"
 
-static const size_t kMaxDir=32;
+static const size_t kMaxDir=32*1024*1024;
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -44,6 +44,8 @@ void MainWindow::findDuplicate() {
   db.clear();
   dirs_entry.clear();
   count=0;
+  max_folder_depth=0;
+
   // find all folders name
   size_t nb=ui->folders->count();
   QProgressDialog progressDialog(this);
@@ -57,13 +59,23 @@ void MainWindow::findDuplicate() {
       return;
     }
     progressDialog.setValue(i);
-    if (!addElementDb(db,ui->folders->item(i)->text())) {
+    if (!addFolderToDb(db,ui->folders->item(i)->text(),0)) {
       QMessageBox::critical(this,"Limits","Maximum number of folders exceeded");
       db.clear();
       return;
     }
   }
 
+  // populate dirs_entry by depth order
+  {
+    std::vector<std::vector<Element *>> v{(size_t)max_folder_depth+1};
+    for(const auto &e: db) addDirsEntry(*e,v);
+    dirs_entry.clear();
+    for(const auto &e: v)
+      for(const auto &ee: e) {
+          dirs_entry.push_back(std::make_pair(ee,false));
+        }
+  }
 
   // look for duplicate
   dirs_duplicate.clear();
@@ -88,8 +100,8 @@ void MainWindow::findDuplicate() {
                  dirs_entry[j].second=true;
              }
          }
-         dirs_duplicate.push_back(std::move(v));
-         // if (!v.size()>1) dirs_duplicate.push_back(std::move(v));
+         // dirs_duplicate.push_back(std::move(v));
+         if (!v.size()>1) dirs_duplicate.push_back(std::move(v));
      }
   }
 
@@ -106,7 +118,7 @@ void MainWindow::findDuplicate() {
       ui->results->setItem(cpt,2, newItem);
       newItem = new QTableWidgetItem(QString::number(first.content.size()));
       ui->results->setItem(cpt,3, newItem);
-      newItem = new QTableWidgetItem(QString::number(first.id.crc));
+      newItem = new QTableWidgetItem(QString::number(first.id.crc,16));
       ui->results->setItem(cpt,4, newItem);
       cpt++;
   }
@@ -127,7 +139,20 @@ void MainWindow::findDuplicate() {
   ui->found_size->setText(QString::number(size));
 }
 
-bool MainWindow::addElementDb(std::vector<std::unique_ptr<Element>> &dbi,QString s) {
+void MainWindow::addDirsEntry(Element &e,std::vector<std::vector<Element *>> &v) const {
+  if (!e.is_dir) return;
+  if (e.depth>=(int)v.size()) {
+      QMessageBox::critical(0,"Logical error","depth too large");
+      QApplication::quit();
+    }
+  v[e.depth].push_back(&e);
+  for(const auto &ee: e.content) {
+      addDirsEntry(*ee,v);
+  }
+}
+
+
+bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QString s,int depth) {
   if (count>kMaxDir) {
     return false;
   }
@@ -138,17 +163,19 @@ bool MainWindow::addElementDb(std::vector<std::unique_ptr<Element>> &dbi,QString
   QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot|QDir::Files|QDir::Dirs);
   dbi.emplace_back(new Element);
   Element &cur=*dbi.back();
-  dirs_entry.push_back(std::make_pair(&cur,false));
   cur.id.name=name;
+  cur.is_dir=true;
+  cur.depth=depth;
+  if (max_folder_depth<depth) max_folder_depth=depth;
   count++;
 
   bool ok=true;
   for (int i = 0; i < list.size(); ++i) {
     QFileInfo fileInfo = list.at(i);    
     if (fileInfo.isDir()) {
-      ok&=addElementDb(cur.content,fileInfo.canonicalFilePath());
+      ok&=addFolderToDb(cur.content,fileInfo.canonicalFilePath(),depth+1);
     } else {
-        ok&=addFileDb(cur.content,fileInfo.canonicalFilePath());
+        ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath(),depth);
       }
    }
 
@@ -162,7 +189,7 @@ bool MainWindow::addElementDb(std::vector<std::unique_ptr<Element>> &dbi,QString
   return ok;
 }
 
-bool MainWindow::addFileDb(std::vector<std::unique_ptr<Element>> &dbi,QString s) {
+bool MainWindow::addFileToDb(std::vector<std::unique_ptr<Element>> &dbi,QString s,int depth) {
   if (count>kMaxDir) {
     return false;
   }
@@ -172,6 +199,8 @@ bool MainWindow::addFileDb(std::vector<std::unique_ptr<Element>> &dbi,QString s)
   cur.id.name=file.canonicalFilePath();
   cur.id.size=file.size();
   cur.id.crc=crc64(cur.id.name);
+  cur.is_dir=false;
+  cur.depth=depth;
   count++;
   return true;
 }

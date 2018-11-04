@@ -21,26 +21,29 @@ private:
     QString name;
     size_t size;
     uint64_t crc;
-    // date
   };
 
   struct Element {
     Id id;
-    std::vector<std::unique_ptr<Element>> content; // file: content is empty
+    std::vector<std::unique_ptr<Element>> content;
+    unsigned short depth;
+    bool is_dir;
   };
 
   Ui::MainWindow *ui;
   std::vector<std::unique_ptr<Element>> db; // roots of the tree
   size_t count;
+  int max_folder_depth;
 
   using DirEntry=std::pair<Element *,bool>; // bool=done
-  std::vector<DirEntry> dirs_entry; // dirs only
+  std::vector<DirEntry> dirs_entry; // dirs only, sorted by depth (top dir first)
   using Duplicates=std::vector<Element *>;
   std::vector<Duplicates> dirs_duplicate;
 
-  bool addElementDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
-  bool addFileDb(std::vector<std::unique_ptr<Element> > &dbi, QString s);
+  bool addFolderToDb(std::vector<std::unique_ptr<Element> > &dbi, QString s, int depth);
+  bool addFileToDb(std::vector<std::unique_ptr<Element> > &dbi, QString s, int depth);
   bool equal(const Element &d0,const Element &d1) const;
+  void addDirsEntry(Element &e, std::vector<std::vector<Element *> > &v) const;
 
 private slots:
   void addInputFolder();

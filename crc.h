@@ -155,6 +155,11 @@ static uint64_t crc64(QString filename) {
   auto nb=size/buffer_size;
   uint64_t crc=0;
   std::ifstream ifile(filename.toStdString(),std::ios::binary);
+  if (!ifile) {
+      QMessageBox::critical(0,"Permission error","cannot read file");
+      QApplication::quit();
+    }
+
   for(size_t i=0;i<nb;++nb) {
       ifile.read((char *)buffer.data(), buffer_size);
       crc=crc64(crc,buffer.data(),buffer_size);
