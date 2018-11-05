@@ -45,12 +45,13 @@ private:
   bool addFileToDb(std::vector<std::unique_ptr<Element> > &dbi, QString s, int depth);
   bool equal(Element &d0,Element &d1) const;
   void addDirsEntry(Element &e, std::vector<std::vector<Element *> > &v) const;
-  void crc64(Element &e) const;
+  bool crc64(Element &e) const;
 
 private slots:
   void addInputFolder();
   void removeFolder();
   void findDuplicate();
+  void showResult(int r,int c);
 };
 
 #endif // MAINWINDOW_H

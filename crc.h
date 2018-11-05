@@ -3,7 +3,7 @@
 #include <array>
 #include <fstream>
 #include <QFileInfo>
-
+#include <QDebug>
 
 static const uint64_t crc64_tab[256] = {
     UINT64_C(0x0000000000000000), UINT64_C(0x7ad870c830358979),
@@ -147,7 +147,7 @@ static uint64_t crc64(uint64_t crc, const unsigned char *s, uint64_t l) {
 }
 
 
-static uint64_t crc64(QString filename) {
+static uint64_t crc64(QString filename,bool &ok) {
   QFileInfo file{filename};
   static const size_t buffer_size=1024;
   std::array<unsigned char,buffer_size> buffer;
@@ -156,9 +156,11 @@ static uint64_t crc64(QString filename) {
   uint64_t crc=0;
   std::ifstream ifile(filename.toStdString(),std::ios::binary);
   if (!ifile) {
-      QMessageBox::critical(0,"Permission error","cannot read file "+filename);
-      QApplication::quit();
-    }
+    qDebug()<<"cannot read file "<<filename;
+    QMessageBox::critical(0,"Permission error","cannot read file "+filename);
+    ok=false;
+    return 0;
+  }
 
   for(size_t i=0;i<nb;++i) {
       ifile.read((char *)buffer.data(), buffer_size);
@@ -166,6 +168,7 @@ static uint64_t crc64(QString filename) {
     }
   ifile.read((char *)buffer.data(), size%buffer_size);
   crc=crc64(crc,buffer.data(),size%buffer_size);
+  ok=true;
   return crc;
 }
 

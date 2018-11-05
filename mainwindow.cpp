@@ -5,6 +5,7 @@
 #include <QProgressDialog>
 #include <iostream>
 #include "crc.h"
+#include <QDebug>
 
 static const size_t kMaxDir=32*1024*1024;
 
@@ -16,7 +17,7 @@ MainWindow::MainWindow(QWidget *parent) :
   connect(ui->addFolder, &QPushButton::clicked, this, &MainWindow::addInputFolder);
   connect(ui->removeFolder, &QPushButton::clicked, this, &MainWindow::removeFolder);
   connect(ui->find, &QPushButton::clicked, this, &MainWindow::findDuplicate);
-
+  connect(ui->results, &QTableWidget::cellDoubleClicked, this, &MainWindow::showResult);
 }
 
 MainWindow::~MainWindow()
@@ -67,7 +68,6 @@ void MainWindow::findDuplicate() {
   }
   // populate dirs_entry by depth order
   {
-      std::cout<<max_folder_depth<<' '<<count<<std::endl;
     std::vector<std::vector<Element *>> v{(size_t)max_folder_depth+1};
     for(const auto &e: db) addDirsEntry(*e,v);
     dirs_entry.clear();
@@ -85,7 +85,6 @@ void MainWindow::findDuplicate() {
     dirs_duplicate.clear();
     for(size_t i=0;i<nb;++i) {
       progressDialog.setValue(i);
-      std::cout<<i<<std::endl;
       if (progressDialog.wasCanceled()) {
         QMessageBox::critical(this,"Cancel","Process cancelled");
         db.clear();
@@ -113,6 +112,7 @@ void MainWindow::findDuplicate() {
   for(const auto &e : dirs_duplicate) {
       const Element &first=*e.front();
       QTableWidgetItem *newItem = new QTableWidgetItem(first.id.name);
+      newItem->setToolTip(first.id.name);
       ui->results->setItem(cpt,0, newItem);
       newItem = new QTableWidgetItem(QString::number(e.size()));
       ui->results->setItem(cpt,1, newItem);
@@ -159,11 +159,11 @@ bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QStrin
     return false;
   }
   QDir dir(s);
-  QString name=dir.canonicalPath();
-   std::cout<<name.toStdString()<<std::endl;
+  QString name=dir.canonicalPath().toUtf8();
+
   if (std::find_if(dbi.begin(),dbi.end(),[&](const std::unique_ptr<Element> &f) { return f->id.name==name;})!=dbi.end()) return true;
 
-  QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot|QDir::Files|QDir::Dirs);
+  QFileInfoList list = dir.entryInfoList(QDir::NoDotAndDotDot|QDir::Files|QDir::Dirs|QDir::NoSymLinks);
   dbi.emplace_back(new Element);
   Element &cur=*dbi.back();
   cur.id.name=name;
@@ -176,9 +176,9 @@ bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QStrin
   for (int i = 0; i < list.size(); ++i) {
     QFileInfo fileInfo = list.at(i);    
     if (fileInfo.isDir()) {
-      ok&=addFolderToDb(cur.content,fileInfo.canonicalFilePath(),depth+1);
+      ok&=addFolderToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth+1);
     } else {
-        ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath(),depth);
+        ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth);
       }
    }
 
@@ -187,7 +187,6 @@ bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QStrin
   cur.id.crc=0;
   for(const auto &e: cur.content) {
       cur.id.size+=e->id.size;
-     // cur.id.crc=crc64(cur.id.crc,(const unsigned char *)&e->id.crc,sizeof(e->id.crc));
     }
   return ok;
 }
@@ -199,7 +198,7 @@ bool MainWindow::addFileToDb(std::vector<std::unique_ptr<Element>> &dbi,QString 
   QFileInfo file(s);
   dbi.emplace_back(new Element);
   Element &cur=*dbi.back();
-  cur.id.name=file.canonicalFilePath();
+  cur.id.name=file.canonicalFilePath().toUtf8();
   cur.id.size=file.size();
   cur.id.crc_done=false;
   cur.is_dir=false;
@@ -208,7 +207,7 @@ bool MainWindow::addFileToDb(std::vector<std::unique_ptr<Element>> &dbi,QString 
   return true;
 }
 
-void MainWindow::crc64(Element &e) const {
+bool MainWindow::crc64(Element &e) const {
   if (e.is_dir) {
     e.id.crc=0;
     for(auto &ee: e.content) {
@@ -216,10 +215,13 @@ void MainWindow::crc64(Element &e) const {
       e.id.crc=::crc64(e.id.crc,(const unsigned char *)&ee->id.crc,sizeof(ee->id.crc));
     }
   } else {
-    e.id.crc=::crc64(e.id.name);
+    bool ok;
+    e.id.crc=::crc64(e.id.name,ok);
+    if (!ok) return false;
   }
 
   e.id.crc_done=true;
+  return true;
 }
 
 bool MainWindow::equal( Element &d0, Element &d1) const {
@@ -234,11 +236,17 @@ bool MainWindow::equal( Element &d0, Element &d1) const {
       if (d0.content.size()!=d1.content.size()) return false;
   }
   if (ui->same_crc->isChecked()) {
-    if (!d0.id.crc_done) crc64(d0); // { d0.id.crc=crc64(d0.id.name); d0.id.crc_done=true; }
-    if (!d1.id.crc_done) crc64(d1); // { d1.id.crc=crc64(d1.id.name); d1.id.crc_done=true; }
+    bool ok=true;
+    if (!d0.id.crc_done) ok&=crc64(d0);
+    if (!d1.id.crc_done) ok&=crc64(d1);
     if (d0.id.crc!=d1.id.crc) return false;
+    return ok;
   }
   return true;
 }
 
-
+void MainWindow::showResult(int r,int c) {
+  for(const auto &e: dirs_duplicate[r]) {
+    qDebug()<<e->id.name;
+  }
+}
