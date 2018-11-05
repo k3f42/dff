@@ -52,7 +52,7 @@ void MainWindow::findDuplicate() {
   if (!progressDialog) {
     progressDialog=new QProgressDialog("Scan input folders","Cancel",0,0,this);
     progressDialog->setMinimumDuration(0);
- // progressDialog.setWindowModality(Qt::WindowModal);
+    progressDialog->setWindowModality(Qt::WindowModal);
     QApplication::processEvents();
   }
   // find all folders name
@@ -167,7 +167,7 @@ bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QStrin
     return false;
   }
   QDir dir(s);
-  QString name=dir.canonicalPath().toUtf8();
+  QString name=dir.canonicalPath();
 
   if (std::find_if(dbi.begin(),dbi.end(),[&](const std::unique_ptr<Element> &f) { return f->id.name==name;})!=dbi.end()) return true;
 
@@ -194,9 +194,9 @@ bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QStrin
   for (int i = 0; i < list.size(); ++i) {
     QFileInfo fileInfo = list.at(i);
     if (fileInfo.isDir()) {
-      ok&=addFolderToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth+1);
+      ok&=addFolderToDb(cur.content,fileInfo.canonicalFilePath(),depth+1);
     } else {
-      ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth);
+      ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath(),depth);
     }
   }
 
