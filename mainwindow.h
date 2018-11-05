@@ -3,6 +3,7 @@
 #include <vector>
 #include <QMainWindow>
 #include <memory>
+#include <QProgressDialog>
 
 namespace Ui {
 class MainWindow;
@@ -32,6 +33,7 @@ private:
   };
 
   Ui::MainWindow *ui;
+  QProgressDialog *progressDialog=nullptr;
   std::vector<std::unique_ptr<Element>> db; // roots of the tree
   size_t count;
   int max_folder_depth;

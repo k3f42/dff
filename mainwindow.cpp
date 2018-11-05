@@ -8,6 +8,7 @@
 #include <QDebug>
 
 static const size_t kMaxDir=32*1024*1024;
+static const size_t kRefreshGuiCount=128;
 
 MainWindow::MainWindow(QWidget *parent) :
   QMainWindow(parent),
@@ -18,6 +19,7 @@ MainWindow::MainWindow(QWidget *parent) :
   connect(ui->removeFolder, &QPushButton::clicked, this, &MainWindow::removeFolder);
   connect(ui->find, &QPushButton::clicked, this, &MainWindow::findDuplicate);
   connect(ui->results, &QTableWidget::cellDoubleClicked, this, &MainWindow::showResult);
+
 }
 
 MainWindow::~MainWindow()
@@ -47,21 +49,24 @@ void MainWindow::findDuplicate() {
   count=0;
   max_folder_depth=0;
 
+  if (!progressDialog) {
+    progressDialog=new QProgressDialog("Scan input folders","Cancel",0,0,this);
+    progressDialog->setMinimumDuration(0);
+ // progressDialog.setWindowModality(Qt::WindowModal);
+    QApplication::processEvents();
+  }
   // find all folders name
   {
+    progressDialog->setLabelText("Scan input folders");
+    progressDialog->setRange(0,0);
+    progressDialog->show();
     size_t nb=ui->folders->count();
-    QProgressDialog progressDialog("Scan input folders","Cancel",0,nb,this);
-    progressDialog.show();
     for(size_t i=0;i<nb;++i) {
-      if (progressDialog.wasCanceled()) {
-        QMessageBox::critical(this,"Cancel","Process cancelled");
-        db.clear();
-        return;
-      }
-      progressDialog.setValue(i);
+
       if (!addFolderToDb(db,ui->folders->item(i)->text(),0)) {
         QMessageBox::critical(this,"Limits","Maximum number of folders exceeded");
         db.clear();
+        progressDialog->close();
         return;
       }
     }
@@ -79,15 +84,17 @@ void MainWindow::findDuplicate() {
 
   // look for duplicate
   {
+    progressDialog->setLabelText("Search for duplicate");
     size_t nb=dirs_entry.size();;
-    QProgressDialog progressDialog("Search for duplicate","Cancel",0,nb,this);
-    progressDialog.show();
+    progressDialog->setRange(0,nb);
+    progressDialog->show();
     dirs_duplicate.clear();
     for(size_t i=0;i<nb;++i) {
-      progressDialog.setValue(i);
-      if (progressDialog.wasCanceled()) {
+      progressDialog->setValue(i);
+      if (progressDialog->wasCanceled()) {
         QMessageBox::critical(this,"Cancel","Process cancelled");
         db.clear();
+        progressDialog->close();
         return;
       }
       if (!dirs_entry[i].second) { // not done yet
@@ -139,6 +146,7 @@ void MainWindow::findDuplicate() {
       size+=e.first->id.size;
   }
   ui->found_size->setText(QString::number(size/1024/1024));
+  progressDialog->close();
 }
 
 void MainWindow::addDirsEntry(Element &e,std::vector<std::vector<Element *>> &v) const {
@@ -172,22 +180,32 @@ bool MainWindow::addFolderToDb(std::vector<std::unique_ptr<Element>> &dbi,QStrin
   if (max_folder_depth<depth) max_folder_depth=depth;
   count++;
 
+  if ((count%kRefreshGuiCount)==0) {
+    if (progressDialog->wasCanceled()) {
+      QMessageBox::critical(this,"Cancel","Process cancelled");
+      db.clear();
+      return false;
+    }
+    progressDialog->setValue(0);
+    QApplication::processEvents( ); // QEventLoop::ExcludeUserInputEvents);
+  }
+
   bool ok=true;
   for (int i = 0; i < list.size(); ++i) {
-    QFileInfo fileInfo = list.at(i);    
+    QFileInfo fileInfo = list.at(i);
     if (fileInfo.isDir()) {
       ok&=addFolderToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth+1);
     } else {
-        ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth);
-      }
-   }
+      ok&=addFileToDb(cur.content,fileInfo.canonicalFilePath().toUtf8(),depth);
+    }
+  }
 
   // compute size and crc
   cur.id.size=0;
   cur.id.crc=0;
   for(const auto &e: cur.content) {
-      cur.id.size+=e->id.size;
-    }
+    cur.id.size+=e->id.size;
+  }
   return ok;
 }
 
@@ -204,6 +222,16 @@ bool MainWindow::addFileToDb(std::vector<std::unique_ptr<Element>> &dbi,QString 
   cur.is_dir=false;
   cur.depth=depth;
   count++;
+  if ((count%kRefreshGuiCount)==0) {
+    if (progressDialog->wasCanceled()) {
+      QMessageBox::critical(this,"Cancel","Process cancelled");
+      db.clear();
+      return false;
+    }
+    progressDialog->setValue(0);
+    QApplication::processEvents( ); // QEventLoop::ExcludeUserInputEvents);
+  }
+
   return true;
 }
 
@@ -245,8 +273,13 @@ bool MainWindow::equal( Element &d0, Element &d1) const {
   return true;
 }
 
-void MainWindow::showResult(int r,int c) {
+void MainWindow::showResult(int r,int /*c*/) {
+  QMessageBox msgBox;
+  msgBox.setText("Duplicates found");
+  QString s;
   for(const auto &e: dirs_duplicate[r]) {
-    qDebug()<<e->id.name;
+    s+=e->id.name+"\n";
   }
+  msgBox.setInformativeText(s); // setDetailedText
+  msgBox.exec();
 }
