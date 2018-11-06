@@ -254,13 +254,12 @@ bool MainWindow::crc64(Element &e) const {
 
 bool MainWindow::equal( Element &d0, Element &d1) const {
   if (ui->ignore_empty->isChecked()&&d0.id.size==0) return false;
+
   if (ui->same_name->isChecked()) {
       if (QFileInfo{d0.id.name}.fileName()!=QFileInfo{d1.id.name}.fileName()) return false;
     }
   if (ui->same_size->isChecked()) {
       if (d0.id.size!=d1.id.size) return false;
-  }
-  {
       if (d0.content.size()!=d1.content.size()) return false;
   }
   if (ui->same_crc->isChecked()) {

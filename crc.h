@@ -152,23 +152,31 @@ static uint64_t crc64(QString filename,bool &ok) {
   static const size_t buffer_size=1024;
   std::array<unsigned char,buffer_size> buffer;
   auto size=file.size();
-  auto nb=size/buffer_size;
   uint64_t crc=0;
-  std::ifstream ifile(filename.toStdString(),std::ios::binary);
-  if (!ifile) {
+  if (size==0) return crc;
+  auto nb=size/buffer_size;
+  QFile qfile(filename);
+  qfile.open(QIODevice::ReadOnly);
+  if (!qfile.exists()) {
     qDebug()<<"cannot read file "<<filename;
     QMessageBox::critical(0,"Permission error","cannot read file "+filename);
     ok=false;
     return 0;
   }
-
+  QDataStream in(&qfile);
   for(size_t i=0;i<nb;++i) {
-      ifile.read((char *)buffer.data(), buffer_size);
+      in.readRawData((char *)buffer.data(), buffer_size);
       crc=crc64(crc,buffer.data(),buffer_size);
     }
-  ifile.read((char *)buffer.data(), size%buffer_size);
+  in.readRawData((char *)buffer.data(), size%buffer_size);
   crc=crc64(crc,buffer.data(),size%buffer_size);
   ok=true;
+  if (in.status()!=QDataStream::Ok) {
+    qDebug()<<"Pb reading file "<<filename;
+    QMessageBox::critical(0,"Pb reading","cannot read file "+filename);
+    ok=false;
+    return 0;
+  }
   return crc;
 }
 
